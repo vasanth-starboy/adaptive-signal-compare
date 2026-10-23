@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Adaptive signal control: 8-parameter comparison</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f7f7f5;--fg:#1d1f23;--muted:#62666d;--card:#fff;--line:#dcdcd6;--acc:#0f8a79;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e8e8e6;--muted:#a0a4ab;--card:#1e2125;--line:#34383e;--acc:#3dc9b3;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e8e8e6;--muted:#a0a4ab;--card:#1e2125;--line:#34383e;--acc:#3dc9b3;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:0 0 2px}
+p{margin:4px 0}.muted{color:var(--muted);font-size:13px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:14px 0}
+textarea{width:100%;height:90px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px ui-monospace,monospace}
+button{background:var(--acc);color:#fff;border:0;border-radius:6px;padding:7px 14px;font:inherit;cursor:pointer;margin:6px 6px 0 0}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:10px}
+.fields label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.fields input{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:5px 7px;font:inherit}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;margin:8px 0}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.chart{position:relative;height:360px;margin-top:8px}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+select,input[type=file]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:5px;font:inherit;margin:4px 10px 4px 0}
+.legend label{cursor:pointer}
+ul{margin:6px 0 0;padding-left:18px;font-size:13px}a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>🚦 Adaptive signal control: 8-parameter comparison</h1>
+<p class="muted">Your algorithm versus published algorithms. Published values come from papers and field reports listed at the bottom; they use different networks, demand and definitions, so compare the rough size of the gaps, not the decimals.</p>
+
+<div class="box">
+<h2>Run the algorithm here (no Python needed)</h2>
+<p class="muted">Choose your raw probe CSV (columns: timestamp, probe_id, speed, approach_id, optional signal_id), edit the settings if you like, and press Run. Every graph on this page then fills in from the result. This is a simplified browser copy of the Python program: it skips the Wmin offset refinement and does not compute prediction error, demand accuracy or the scalability test, so use Python for final report numbers.</p>
+<input type="file" id="raw" accept=".csv,.txt">
+<textarea id="cfg">budget 120
+window 300
+step 300
+penetration 0.30
+speed_unit kmh
+# dist 1 0 300   (signal, approach, metres to stop line; default 300)</textarea>
+<button id="run">Run</button><span class="note" id="rstat"></span>
+</div>
+
+<div class="box">
+<h2>Your results</h2>
+<p class="muted">The boxes are pre-filled with <b>demo values from a synthetic dataset</b>. Paste your own <code>*_report.txt</code> and press Read report, or edit the numbers directly.</p>
+<textarea id="rep" placeholder="Paste the contents of results_report.txt here"></textarea>
+<button id="go">Read report</button><button class="alt" id="demo">Reset to demo values</button>
+<div class="fields" id="fields"></div>
+</div>
+
+<div class="box">
+<h2>Dynamic comparison over time</h2>
+<p class="muted">Upload one or more <code>results.csv</code> files, one per algorithm; the file name becomes its label. Pick a metric and every algorithm is drawn window by window. For delay and travel time, the other published algorithms are drawn as dashed lines: your own fixed-time baseline reduced by each algorithm’s published improvement.</p>
+<input type="file" id="files" accept=".csv" multiple>
+<label class="muted">Metric <select id="metric"></select></label>
+<label class="muted"><input type="checkbox" id="proj" checked> Show published algorithms projected onto my baseline</label>
+<div class="chart"><canvas id="ct"></canvas></div>
+<p class="note" id="sum"></p>
+<h2 style="margin-top:12px">Published algorithms shown (applies to all graphs)</h2>
+<div id="algs" class="legend"></div>
+</div>
+
+<div class="legend">
+<span><i style="background:#0f9d8a"></i>Your algorithm</span>
+<span><i style="background:#5b7fd6"></i>Published simulation (Dalian, 6 intersections)</span>
+<span><i style="background:#a78bfa"></i>Published field studies</span>
+<span><i style="background:#8a8f98"></i>Fixed-time baseline</span>
+</div>
+
+<div class="grid">
+<div class="card"><h2>1. Average delay: improvement vs fixed-time (%)</h2><div class="chart"><canvas id="c1"></canvas></div>
+<p class="note">Dalian values are computed from that paper’s Table 1 against its fixed-time control. Field values are agency-reported averages. Your value is the model estimate.</p></div>
+<div class="card"><h2>2. Average travel time: improvement vs fixed-time (%)</h2><div class="chart"><canvas id="c2"></canvas></div>
+<p class="note">Dalian values use total network travel time. No comparable SCOOT travel-time average was found, so it is left out.</p></div>
+<div class="card"><h2>3. Arrival-on-green ratio (%)</h2><div class="chart"><canvas id="c3"></canvas></div>
+<p class="note">No comparable published arrival-on-green figures were found, so this compares your adaptive offsets with your own fixed-time baseline (offsets all 0).</p></div>
+<div class="card"><h2>4. Throughput: gain vs fixed-time (%)</h2><div class="chart"><canvas id="c4"></canvas></div>
+<p class="note">Only one published figure was found (ACDSS field report). Your throughput gain can’t be computed from probe data recorded under fixed-time control; enter one if you have it.</p></div>
+<div class="card"><h2>5. Arrival / travel-time prediction error (MAPE %)</h2><div class="chart"><canvas id="c5"></canvas></div>
+<p class="note">Published value: mean travel-time MAPE at 5% probe penetration (speed-map reconstruction), a different method from yours. Lower is better.</p></div>
+<div class="card"><h2>6. Demand estimation accuracy (%)</h2><div class="chart"><canvas id="c6"></canvas></div>
+<p class="note">Published values are best-case results (arrival-rate error 4.2%, volume error 0.9%) from a low-penetration connected-vehicle study.</p></div>
+<div class="card"><h2>7. Computation time per control update (ms, log scale)</h2><div class="chart"><canvas id="c7"></canvas></div>
+<p class="note">Slower published methods: a genetic algorithm takes 40–55 s (plotted at 47.5 s) for one intersection, and MILP-MPC about 0.9 s for one intersection. The 6-intersection values are whole-network updates. The distributed DP figure is a median upper bound per intersection. All are on the authors’ hardware and solve somewhat different problems from yours.</p></div>
+<div class="card"><h2>8. Scalability: update time vs number of intersections (ms, log scale)</h2><div class="chart"><canvas id="c8"></canvas></div>
+<p class="note">Your curve is from section 8(b) of your report. The far-right triangle is a published SDP offset optimizer that reports near-linear scaling and finishing 12,000 intersections within an hour, so it is an upper bound.</p></div>
+</div>
+
+<div class="box">
+<h2>Sources</h2>
+<ul>
+<li>Dalian six-intersection VISSIM study (fixed-time, Max-Pressure, MFAPC, MPC-Road, MPC-CasADi, MPC-ADMM): <a href="https://arxiv.org/pdf/2401.11483">arXiv 2401.11483</a></li>
+<li>Field averages for SCOOT, SCATS, InSync and ACDSS: <a href="https://www.nyserda.ny.gov/-/media/Project/Nyserda/Files/Publications/Research/Transportation/2016-12-Decision-Tool-Adaptive-Traffic-Control-Systems.pdf">NYSERDA decision-making tool</a> and <a href="https://dot.ca.gov/-/media/dot-media/programs/research-innovation-system-information/documents/final-reports/ca13-2157a-finalreport-a11y.pdf">Caltrans advanced signal control review</a></li>
+<li>Volume and arrival-rate estimation from low-penetration connected vehicles: IEEE T-ITS, <a href="https://doi.org/10.1109/TITS.2021.3094933">10.1109/TITS.2021.3094933</a></li>
+<li>Travel-time MAPE at 5% probe penetration: <a href="https://arxiv.org/pdf/1806.08764">arXiv 1806.08764</a></li>
+<li>Genetic algorithm timing (40–55 s, one intersection): <a href="https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0339519">PLOS ONE</a></li>
+<li>MILP-MPC execution time (Gurobi): <a href="https://arxiv.org/pdf/2011.00560">arXiv 2011.00560</a></li>
+<li>Large-scale offset optimization (SDP relaxation): <a href="https://arxiv.org/pdf/1911.08368">arXiv 1911.08368</a></li>
+<li>Distributed MPC with dynamic programming (under 0.05 s per intersection): <a href="https://fis.tu-dresden.de/portal/en/publications/a-distributed-model-predictive-approach-for-network-traffic-signal-control-using-multiobjective-dynamic-programming(ad783744-c817-4ee5-abe9-65942f9db32b).html">TU Dresden record</a></li>
+</ul>
+</div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const DEMO={dImp:28.1,tImp:22.3,aog:39.6,aogFix:0,thr:null,mape:21.9,dA:72.6,dN:92.0,latA:3.687,latM:11.461,
+scal:[[2,1.436],[4,4.417],[8,10.009],[16,20.711],[32,43.743],[64,86.259]]};
+const LBL={dImp:'Delay improvement vs fixed-time (%)',tImp:'Travel-time improvement (%)',aog:'Arrival-on-green, adaptive (%)',
+aogFix:'Arrival-on-green, fixed-time (%)',thr:'Throughput gain vs fixed-time (%, optional)',mape:'Travel-time prediction MAPE (%)',
+dA:'Demand accuracy, approach level (%)',dN:'Demand accuracy, network level (%)',latA:'Update latency, average (ms)',latM:'Update latency, maximum (ms)'};
+const COL={me:'#0f9d8a',sim:'#5b7fd6',fld:'#a78bfa',fix:'#8a8f98'};
+let S=JSON.parse(JSON.stringify(DEMO)),charts={};
+const $=s=>document.querySelector(s);
+
+function buildFields(){
+  $('#fields').innerHTML=Object.keys(LBL).map(k=>`<label>${LBL[k]}<input type="number" step="any" data-k="${k}" value="${S[k]??''}"></label>`).join('');
+  document.querySelectorAll('#fields input').forEach(i=>i.oninput=()=>{S[i.dataset.k]=i.value===''?null:+i.value;draw()});
+}
+function parse(t){
+  const n=r=>{const m=t.match(r);return m?parseFloat(m[1]):null};
+  const imp=[...t.matchAll(/Improvement vs fixed-time\s*:\s*(-?[\d.]+)/g)].map(m=>+m[1]);
+  const sc=[...t.matchAll(/^\s+(\d+)\s+([\d.]+)\s+[\d.]+\s+[\d.]+e\+\d+\s*$/gm)].map(m=>[+m[1],+m[2]]);
+  return {dImp:imp[0]??null,tImp:imp[1]??null,aog:n(/Adaptive offsets\s*:\s*(-?[\d.]+)/),aogFix:n(/Fixed-time \(offsets all 0\)\s*:\s*(-?[\d.]+)/),
+    thr:null,mape:n(/Per approach-window \(travel time\).*?MAPE\s*(-?[\d.]+)/),dA:n(/Approach level\s*:\s*(-?[\d.]+)/),
+    dN:n(/Network level\s*:\s*(-?[\d.]+)/),latA:n(/Average\s*:\s*([\d.]+)\s+Maximum/),latM:n(/Maximum\s*:\s*([\d.]+)/),scal:sc};
+}
+function mk(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($('#'+id),cfg)}
+function bar(id,rows,title,log){
+  const hid=hidden();
+  rows=rows.filter(r=>r[1]!=null&&isFinite(r[1])&&!hid.some(h=>r[0].startsWith(h)));
+  const col=rows.map(r=>COL[r[2]]);
+  mk(id,{type:'line',data:{labels:rows.map(r=>r[0]),datasets:[{data:rows.map(r=>r[1]),borderColor:COL.fix,borderWidth:2,tension:0,pointRadius:7,pointHoverRadius:9,pointBackgroundColor:col,pointBorderColor:col}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{autoSkip:false,maxRotation:50,minRotation:35}},y:{type:log?'logarithmic':'linear',title:{display:true,text:title}}}}});
+}
+function draw(){
+  const cs=getComputedStyle(document.documentElement);
+  Chart.defaults.color=cs.getPropertyValue('--fg').trim();Chart.defaults.borderColor=cs.getPropertyValue('--line').trim();
+  const Y='Your algorithm';
+  bar('c1',[[Y,S.dImp,'me'],['MPC-ADMM (sim)',54.2,'sim'],['MPC-CasADi (sim)',53.6,'sim'],['MFAPC (sim)',42.1,'sim'],['Max-Pressure (sim)',35.4,'sim'],['MPC-Road (sim)',28.4,'sim'],
+    ['ACDSS (field)',30,'fld'],['InSync (field)',24,'fld'],['SCATS (field)',19,'fld'],['SCOOT (field)',12,'fld']],'Delay reduction (%)');
+  bar('c2',[[Y,S.tImp,'me'],['MPC-ADMM (sim)',30.3,'sim'],['MPC-CasADi (sim)',30.0,'sim'],['MFAPC (sim)',24.3,'sim'],['Max-Pressure (sim)',22.0,'sim'],['MPC-Road (sim)',19.0,'sim'],
+    ['InSync (field)',12,'fld'],['SCATS (field)',6.7,'fld']],'Travel-time reduction (%)');
+  bar('c3',[['Yours: adaptive offsets',S.aog,'me'],['Yours: fixed-time (offsets 0)',S.aogFix,'fix']],'Arrival on green (%)');
+  bar('c4',[[Y,S.thr,'me'],['ACDSS (field)',7,'fld']],'Throughput gain (%)');
+  bar('c5',[[Y,S.mape,'me'],['Probe speed-map reconstruction, 5% penetration',13,'fld']],'MAPE (%), lower is better');
+  bar('c6',[[Y+': approach level',S.dA,'me'],[Y+': network level',S.dN,'me'],['Volume estimate, best case (CV study)',99.1,'fld'],['Arrival-rate estimate, best case (CV study)',95.8,'fld']],'Accuracy (%)');
+  bar('c7',[[Y+': average',S.latA,'me'],[Y+': maximum',S.latM,'me'],['Distributed DP, per intersection (field, upper bound)',50,'fld'],['MILP-MPC, 1 intersection (sim)',900,'sim'],['MFAPC, 6 intersections (sim)',972,'sim'],['MPC-ADMM, 6 intersections (sim)',1323,'sim'],['MPC-CasADi, 6 intersections (sim)',4137,'sim'],['MPC-Road, 6 intersections (sim)',4389,'sim'],['Genetic algorithm, 1 intersection (sim)',47500,'sim']],'Milliseconds (log scale)',true);
+  const pts=(S.scal||[]).map(p=>({x:p[0],y:p[1]}));
+  mk('c8',{type:'scatter',data:{datasets:[
+    {label:Y,data:pts,showLine:true,borderColor:COL.me,backgroundColor:COL.me,pointRadius:4},
+    {label:'Published (6 intersections)',data:[{x:6,y:972},{x:6,y:1323},{x:6,y:4137},{x:6,y:4389}],backgroundColor:COL.sim,pointRadius:6,pointStyle:'rectRot'},
+    {label:'Slower published methods (GA and MILP-MPC at 1 intersection; SDP offset search at 12,000, upper bound)',data:[{x:1,y:900},{x:1,y:47500},{x:12000,y:3600000}],backgroundColor:COL.fld,pointRadius:6,pointStyle:'triangle'}]},
+    options:{maintainAspectRatio:false,scales:{x:{type:'logarithmic',title:{display:true,text:'Number of intersections'}},y:{type:'logarithmic',title:{display:true,text:'Milliseconds per update'}}}}});
+}
+$('#go').onclick=()=>{const p=parse($('#rep').value);Object.keys(p).forEach(k=>{if(p[k]!=null&&!(Array.isArray(p[k])&&!p[k].length))S[k]=p[k]});buildFields();draw()};
+$('#demo').onclick=()=>{S=JSON.parse(JSON.stringify(DEMO));buildFields();draw()};
+const METRICS={est_delay_adaptive_s:['Delay (s), model estimate','est_delay_fixed_s'],est_tt_adaptive_s:['Travel time (s), model estimate','est_tt_fixed_s'],aog_adaptive:['Arrival on green (ratio)','aog_fixed'],est_throughput_vph:['Estimated throughput (veh/h)',null],obs_delay_s:['Observed delay (s), probe data',null],probes_total:['Probes in window',null],latency_ms:['Update latency (ms)',null]};
+const PUB={'MPC-ADMM':[54.2,30.3],'MPC-CasADi':[53.6,30.0],'MFAPC':[42.1,24.3],'Max-Pressure':[35.4,22.0],'MPC-Road':[28.4,19.0],'ACDSS':[30,null],'InSync':[24,12],'SCATS':[19,6.7],'SCOOT':[12,null]};
+const ALGS=[...Object.keys(PUB),'Genetic algorithm','MILP-MPC','Distributed DP'];
+const hidden=()=>[...document.querySelectorAll('#algs input')].filter(i=>!i.checked).map(i=>i.dataset.a);
+function buildAlgs(){
+  $('#algs').innerHTML=ALGS.map(n=>`<label><input type="checkbox" data-a="${n}" checked> ${n}</label>`).join('');
+  document.querySelectorAll('#algs input').forEach(i=>i.onchange=()=>{draw();drawT()});
+  $('#metric').innerHTML=Object.keys(METRICS).map(k=>`<option value="${k}">${METRICS[k][0]}</option>`).join('');
+  $('#metric').onchange=drawT;$('#proj').onchange=drawT;
+}
+function csv(t){const L=t.trim().split(/\r?\n/),h=L[0].split(',');return L.slice(1).map(l=>{const c=l.split(','),o={};h.forEach((k,i)=>o[k]=c[i]);return o})}
+const num=v=>{const x=parseFloat(v);return isFinite(x)?x:null};
+const avg=a=>{a=a.filter(v=>v!=null);return a.length?a.reduce((s,v)=>s+v,0)/a.length:null};
+let FILES=[];
+$('#files').onchange=async e=>{FILES=[];for(const f of e.target.files)FILES.push({name:f.name.replace(/\.csv$/i,''),rows:csv(await f.text())});drawT()};
+function drawT(){
+  const m=$('#metric').value,fk=METRICS[m][1],PAL=['#0f9d8a','#e0822d','#d6567a','#4c9be8','#9ccc3c'];
+  const pts=(f,k)=>f.rows.map(r=>({x:num(r.t_rel_s),y:num(r[k])})).filter(p=>p.x!=null&&p.y!=null);
+  const ds=FILES.map((f,i)=>({label:f.name,data:pts(f,m),borderColor:PAL[i%5],backgroundColor:PAL[i%5],tension:.25,pointRadius:3,showLine:true}));
+  let sum=FILES.length?'':'Upload a results.csv to see the time series.';
+  const mean=(f,k)=>avg(pts(f,k).map(p=>p.y));
+  if(FILES.length&&fk){
+    const f0=FILES[0],base=mean(f0,fk),idx=m==='est_delay_adaptive_s'?0:m==='est_tt_adaptive_s'?1:-1;
+    ds.push({label:'Fixed-time baseline',data:pts(f0,fk),borderColor:COL.fix,backgroundColor:COL.fix,borderDash:[6,4],pointRadius:0,showLine:true,tension:.25});
+    if(idx>=0&&$('#proj').checked&&base!=null){
+      const xs=pts(f0,m).map(p=>p.x),x0=Math.min(...xs),x1=Math.max(...xs),hid=hidden();
+      Object.keys(PUB).forEach(n=>{const imp=PUB[n][idx];if(imp==null||hid.includes(n))return;
+        ds.push({label:n+' (published, projected)',data:[{x:x0,y:base*(1-imp/100)},{x:x1,y:base*(1-imp/100)}],borderColor:COL.sim,backgroundColor:COL.sim,borderDash:[2,3],borderWidth:1,pointRadius:0,showLine:true})});
+    }
+    sum=FILES.map(f=>{const a=mean(f,m);const g=base&&a!=null&&idx>=0?` (${(100*(base-a)/base).toFixed(1)}% below fixed-time)`:'';return `${f.name}: mean ${a==null?'NA':a.toFixed(2)}${g}`}).join(' · ');
+  }else if(FILES.length)sum=FILES.map(f=>{const a=mean(f,m);return `${f.name}: mean ${a==null?'NA':a.toFixed(2)}`}).join(' · ');
+  $('#sum').textContent=sum;
+  mk('ct',{type:'scatter',data:{datasets:ds},options:{maintainAspectRatio:false,scales:{x:{title:{display:true,text:'Time since start (s)'}},y:{title:{display:true,text:METRICS[m][0]}}},plugins:{legend:{labels:{boxWidth:12}}}}});
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{draw();drawT()});
+function cfgFrom(t){const c={gmin:10,gmax:60,yellow:3,all_red:2,budget:120,window:300,step:300,delta:5,vmin:1,vmax:25,min_probes_total:8,min_probes_per_approach:1,offset_step:5,max_shift:10,min_band:0,penetration:.3,sat_flow:1800,lanes:1,free_flow_kmh:0,num_signals:0,speed_unit:'kmh',dist:{}};
+  t.split(/\r?\n/).forEach(l=>{l=l.split('#')[0].replace(/[=,]/g,' ').trim().split(/\s+/);const k=(l[0]||'').toLowerCase();
+    if(k==='dist'&&l.length>3)c.dist[l[1]+','+l[2]]=+l[3];else if(k==='speed_unit'&&l[1])c.speed_unit=l[1].toLowerCase();
+    else if(k!=='dist'&&typeof c[k]==='number'&&l[1]!==undefined&&isFinite(+l[1]))c[k]=+l[1]});return c}
+const wr=(x,C)=>((x%C)+C)%C,ci=(x,C)=>{const r=wr(x,C);return r>C/2?r-C:r};
+function ps(G,a,c){let s=0;for(let k=0;k<a;k++)s+=G[k]+c.yellow+c.all_red;return s}
+function gf(m,d,gs,G,C){let n=0;for(let s=0;s<=40;s++)if(wr(m-d+2*d*s/40-gs,C)<G)n++;return n/41}
+function ov(aS,aL,bS,bL,C){const s0=wr(bS-aS,C);let b=0;for(const s of [s0,s0-C])b=Math.max(b,Math.min(aL,s+bL)-Math.max(0,s));return Math.max(0,b)}
+function ev(Gi,Gj,oi,oj,Tf,Tr,C,c){const a=ps(Gi,2,c),b=ps(Gj,2,c);
+  return {fF:gf(oi+Gi[0]/2+Tf,c.delta,oj,Gj[0],C),fR:gf(oj+b+Gj[2]/2+Tr,c.delta,oi+a,Gi[2],C),bF:ov(oi+Tf,Gi[0],oj,Gj[0],C),bR:ov(oj+b+Tr,Gj[2],oi+a,Gi[2],C),e1:ci(oj-oi-Tf,C),e2:ci(oi+a-(oj+b)-Tr,C)}}
+function enforce(G,c){for(let it=0;it<200;it++){G=G.map(g=>Math.max(c.gmin,Math.min(g,c.gmax)));const df=c.budget-G.reduce((a,b)=>a+b,0);if(Math.abs(df)<1e-9)break;
+  const ok=G.map(g=>df>0?g<c.gmax-1e-12:g>c.gmin+1e-12),n=ok.filter(Boolean).length;if(!n)break;G=G.map((g,i)=>ok[i]?g+df/n:g)}return G}
+function dpOff(M,G,Tf,Tr,C,c){if(M<2)return [0];const K=Math.max(2,Math.floor(C/c.offset_step+1e-9)),st=c.offset_step;let dp=Array(K).fill(Infinity);dp[0]=0;const par=[];
+  for(let i=0;i<M-1;i++){const nd=Array(K).fill(Infinity),pa=Array(K).fill(-1);
+    for(let kj=0;kj<K;kj++)for(let ki=0;ki<K;ki++){if(dp[ki]===Infinity)continue;const e=ev(G[i],G[i+1],ki*st,kj*st,Tf[i],Tr[i],C,c);if(e.bF<c.min_band||e.bR<c.min_band)continue;
+      const v=dp[ki]+(1-e.fF)+(1-e.fR)+1e-3*(e.e1*e.e1+e.e2*e.e2);if(v<nd[kj]){nd[kj]=v;pa[kj]=ki}}
+    par.push(pa);dp=nd}
+  let b=-1,bv=Infinity;dp.forEach((v,k)=>{if(v<bv){bv=v;b=k}});if(b<0)return null;
+  const o=Array(M);for(let i=M-1;i>=0;i--){o[i]=b*st;if(i>0)b=par[i-1][b]}return o}
+function dly(q,pl,c,dist,vf){let nd=0,nt=0,den=0;const T=c.window/3600;
+  q.forEach((qg,g)=>{if(qg<=0)return;const lam=pl.G[g>>2][g&3]/pl.C,cap=c.sat_flow*c.lanes*lam,X=qg/cap,
+    d=0.5*pl.C*(1-lam)**2/(1-Math.min(1,X)*lam)+900*T*((X-1)+Math.sqrt((X-1)**2+8*0.5*X/(cap*T)));nd+=qg*d;nt+=qg*(dist[g]/vf+d);den+=qg});
+  return den>0?[nd/den,nt/den]:[NaN,NaN]}
+function aogP(pl,Tf,Tr,c){const M=pl.o.length;if(M<2)return NaN;let s=0;for(let i=0;i<M-1;i++){const e=ev(pl.G[i],pl.G[i+1],pl.o[i],pl.o[i+1],Tf[i],Tr[i],pl.C,c);s+=e.fF+e.fR}return s/(2*(M-1))}
+function simulate(text,c){
+  const L=text.split(/\r?\n/).filter(x=>x.trim()),dl=[',',';','\t'].sort((a,b)=>L[0].split(b).length-L[0].split(a).length)[0];
+  const H=L[0].split(dl).map(x=>x.trim().replace(/"/g,'').toLowerCase()),ix=(...n)=>H.findIndex(h=>n.includes(h));
+  const cT=ix('timestamp','time','datetime','t'),cI=ix('probe_id','vehicle_id','probe','vehicle','id','veh_id'),cS=ix('speed','velocity','spd'),cG=ix('signal_id','signal','intersection_id','junction_id'),cA=ix('approach_id','approach','approachid');
+  if(cT<0||cI<0||cS<0||cA<0)throw new Error('The header needs timestamp, probe_id, speed and approach_id (signal_id optional).');
+  const fac=c.speed_unit==='mph'?.44704:c.speed_unit==='ms'?1:1/3.6,P=[];
+  for(const l of L.slice(1)){const k=l.split(dl).map(x=>x.trim().replace(/"/g,''));let t=+k[cT];if(!isFinite(t)||k[cT]==='')t=Date.parse(k[cT].replace(' ','T'))/1000;
+    const sp=+k[cS],a=+k[cA],sg=cG<0?1:+k[cG];if(!isFinite(t)||!k[cI]||!isFinite(sp)||sp<0||!(a>=0&&a<4&&a%1===0)||!(sg>=1&&sg%1===0))continue;P.push({t,pid:k[cI],s:sp*fac,g:(sg-1)*4+a})}
+  if(!P.length)throw new Error('No usable rows after cleaning.');
+  P.sort((a,b)=>a.t-b.t);const M=Math.max(P.reduce((m,p)=>Math.max(m,p.g>>2),0)+1,c.num_signals),GN=M*4,tS=P[0].t,tE=P[P.length-1].t;
+  const traj=Array.from({length:GN},()=>[]);P.forEach(p=>traj[p.g].push(p));
+  const dist=Array.from({length:GN},(_,g)=>c.dist[(g>>2)+1+','+(g&3)]??300);
+  let vf=c.free_flow_kmh>0?c.free_flow_kmh/3.6:0;if(vf<=0){const mv=P.filter(p=>p.s>=1.39).map(p=>p.s).sort((a,b)=>a-b);vf=mv.length?mv[Math.floor(.85*(mv.length-1))]:11}
+  const tm=new Map();P.forEach(p=>{const k=p.pid+'|'+p.g,e=tm.get(k);if(!e)tm.set(k,{g:p.g,te:p.t,tc:p.t,n:1});else{e.tc=p.t;e.n++}});
+  const trips=[...tm.values()].filter(x=>x.n>=2).map(x=>({...x,delay:Math.max(0,x.tc-x.te-dist[x.g]/vf)})),C=c.budget+4*(c.yellow+c.all_red);
+  const fx={G:Array.from({length:M},()=>Array(4).fill(c.budget/4)),o:Array(M).fill(0),C};let prev={G:fx.G.map(g=>g.slice()),o:fx.o.slice()};const rows=[];
+  for(let t=tS+c.window;t-c.window<tE+1e-9;t+=c.step){const w0=performance.now(),D=Array(GN).fill(0),T=Array(GN).fill(NaN);let Dt=0,allEst=true;
+    for(let g=0;g<GN;g++){const m=new Map();for(const p of traj[g])if(p.t>t-c.window&&p.t<=t){if(p.s<=c.vmax){const e=m.get(p.pid)||[0,0];e[0]+=p.s;e[1]++;m.set(p.pid,e)}else if(!m.has(p.pid))m.set(p.pid,[0,0])}
+      D[g]=m.size;Dt+=D[g];let s=0,n=0;m.forEach(e=>{if(e[1]>0){s+=e[0]/e[1];n++}});if(n>0)T[g]=dist[g]/Math.max(s/n,c.vmin);if(n<Math.max(1,c.min_probes_per_approach))allEst=false}
+    const cur={G:prev.G.map(g=>g.slice()),o:prev.o.slice(),C},Tf=[],Tr=[],ok=Dt>=c.min_probes_total&&allEst;
+    if(ok){for(let i=0;i<M-1;i++){Tf[i]=T[(i+1)*4];Tr[i]=T[i*4+2]}
+      for(let s=0;s<M;s++){const d=D.slice(s*4,s*4+4),ds=d.reduce((a,b)=>a+b,0);if(ds>0)cur.G[s]=enforce(d.map(x=>c.gmin+x/ds*(c.budget-4*c.gmin)),c)}
+      const o=dpOff(M,cur.G,Tf,Tr,C,c);if(o)cur.o=o}
+    const q=D.map(d=>d/c.penetration*3600/c.window),[da,ta]=dly(q,cur,c,dist,vf),[df,tf]=dly(q,fx,c,dist,vf),tr=trips.filter(x=>x.tc>t-c.window&&x.tc<=t);
+    rows.push({t_rel_s:t-tS,est_delay_adaptive_s:da,est_delay_fixed_s:df,est_tt_adaptive_s:ta,est_tt_fixed_s:tf,aog_adaptive:ok&&M>1?aogP(cur,Tf,Tr,c):NaN,aog_fixed:ok&&M>1?aogP(fx,Tf,Tr,c):NaN,
+      est_throughput_vph:tr.length/c.penetration*3600/c.window,obs_delay_s:tr.length?tr.reduce((a,x)=>a+x.delay,0)/tr.length:NaN,probes_total:Dt,latency_ms:performance.now()-w0});prev=cur}
+  return {rows,M,n:P.length}}
+$('#run').onclick=async()=>{const st=$('#rstat'),f=$('#raw').files[0];if(!f){st.textContent=' Choose a probe CSV first.';return}
+  st.textContent=' Running…';await new Promise(r=>setTimeout(r,40));
+  try{const R=simulate(await f.text(),cfgFrom($('#cfg').value)),col=k=>R.rows.map(r=>isFinite(r[k])?r[k]:null),A=k=>avg(col(k)),imp=(a,b)=>A(b)?100*(A(b)-A(a))/A(b):null,pc=k=>A(k)==null?null:100*A(k);
+    Object.assign(S,{dImp:imp('est_delay_adaptive_s','est_delay_fixed_s'),tImp:imp('est_tt_adaptive_s','est_tt_fixed_s'),aog:pc('aog_adaptive'),aogFix:pc('aog_fixed'),latA:A('latency_ms'),latM:Math.max(...col('latency_ms').filter(v=>v!=null)),mape:null,dA:null,dN:null,scal:[]});
+    FILES=[{name:'Your algorithm (browser run)',rows:R.rows}];buildFields();draw();drawT();
+    st.textContent=` Done: ${R.n} rows, ${R.M} signal(s), ${R.rows.length} windows. Scroll down for the graphs.`}
+  catch(e){st.textContent=' Error: '+e.message}};
+buildFields();buildAlgs();draw();drawT();
+</script>
+</body>
+</html>
