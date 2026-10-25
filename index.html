@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Adaptive signal control: 8-parameter comparison</title>
+<title>Adaptive Synchronous Traffic Signal Control: 8-parameter comparison</title>
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 --bg:#f7f7f5;--fg:#1d1f23;--muted:#62666d;--card:#fff;--line:#dcdcd6;--acc:#0f8a79;color-scheme:light}
@@ -37,8 +37,8 @@ ul{margin:6px 0 0;padding-left:18px;font-size:13px}a{color:var(--acc)}
 </head>
 <body>
 <main>
-<h1>🚦 Adaptive signal control: 8-parameter comparison</h1>
-<p class="muted">Your algorithm versus Fixed-time and four published algorithms (Max-Pressure, MFAPC, MPC-Road, MPC-CasADi). The four come from one study that tested all of them on the same 6-intersection network with the same metrics, which keeps the comparison fair. Your own numbers come from your dataset, so the two sets are close in kind but not identical in conditions.</p>
+<h1>🚦 Adaptive Synchronous Traffic Signal Control: 8-parameter comparison</h1>
+<p class="muted">The Adaptive Synchronous Traffic Signal Control algorithm versus Fixed-time and four published algorithms (Max-Pressure, MFAPC, MPC-Road, MPC-CasADi). The four come from one study that tested all of them on the same 6-intersection network with the same metrics, which keeps the comparison fair. The Adaptive Synchronous Traffic Signal Control numbers come from your dataset, so the two sets are close in kind but not identical in conditions.</p>
 
 <div class="box">
 <h2>Step 1 · Load the dataset and generate the result files</h2>
@@ -82,25 +82,25 @@ speed_unit kmh
 </div>
 
 
-<div class="box"><h2>Scoreboard: where your algorithm is ahead or behind</h2><div id="score"></div></div>
+<div class="box"><h2>Scoreboard: where the Adaptive Synchronous Traffic Signal Control algorithm is ahead or behind</h2><div id="score"></div></div>
 
 <div class="grid">
 <div class="card"><h2>1. Average delay: reduction vs fixed-time (%)</h2><div class="chart"><canvas id="c1"></canvas></div>
-<p class="note">Yours and fixed-time are measured on your data. The other four are published values from one study, computed from its table. Higher is better.</p></div>
+<p class="note">The Adaptive Synchronous Traffic Signal Control algorithm and fixed-time are measured on your data. The other four are published values from one study, computed from its table. Higher is better.</p></div>
 <div class="card"><h2>2. Average travel time: reduction vs fixed-time (%)</h2><div class="chart"><canvas id="c2"></canvas></div>
 <p class="note">Same sources as graph 1, using total network travel time. Higher is better.</p></div>
 <div class="card"><h2>3. Arrival-on-green ratio (%)</h2><div class="chart"><canvas id="c3"></canvas></div>
 <p class="note">Both are measured on your data (adaptive offsets against offsets all 0). A value of 0 is a real result: fixed-time with all offsets 0 gives no arrivals on green. No published arrival-on-green values were found for the other algorithms.</p></div>
 <div class="card"><h2>4. Throughput (veh/h, whole network)</h2><div class="chart"><canvas id="c4"></canvas></div>
-<p class="note">Served flow = demand the signal plan can actually serve (green-limited), averaged over windows, for your plan and for fixed-time. The probe-based estimate and the ground-truth count are network totals; ground truth needs a ground-truth file. Equal served flows mean no approach was over capacity.</p></div>
+<p class="note">Served flow = demand the signal plan can actually serve (green-limited), averaged over windows, for the adaptive plan and for fixed-time. The probe-based estimate and the ground-truth count are network totals; ground truth needs a ground-truth file. Equal served flows mean no approach was over capacity.</p></div>
 <div class="card"><h2>5. Travel-time prediction error (MAPE %)</h2><div class="chart"><canvas id="c5"></canvas></div>
 <p class="note">Both bars are measured on your data: the flowchart’s arithmetic-mean speed against a harmonic-mean variant. Lower is better.</p></div>
 <div class="card"><h2>6. Demand estimation accuracy (%)</h2><div class="chart"><canvas id="c6"></canvas></div>
-<p class="note">Your algorithm only. It needs a ground-truth file and is measured against it.</p></div>
+<p class="note">Adaptive Synchronous Traffic Signal Control algorithm only. It needs a ground-truth file and is measured against it.</p></div>
 <div class="card"><h2>7. Computation time per control update (ms, log scale)</h2><div class="chart"><canvas id="c7"></canvas></div>
-<p class="note">Published times are whole-network updates for 6 intersections on the authors’ hardware. Yours depends on your computer. Lower is better.</p></div>
+<p class="note">Published times are whole-network updates for 6 intersections on the authors’ hardware. The Adaptive Synchronous Traffic Signal Control time depends on your computer. Lower is better.</p></div>
 <div class="card"><h2>8. Scalability: update time vs number of intersections (ms, log scale)</h2><div class="chart"><canvas id="c8"></canvas></div>
-<p class="note">Your curve is from section 8(b) of your report. Published points exist only for 6 intersections.</p></div>
+<p class="note">The Adaptive Synchronous Traffic Signal Control curve is from section 8(b) of your report. Published points exist only for 6 intersections.</p></div>
 </div>
 
 <div class="box">
@@ -113,6 +113,7 @@ speed_unit kmh
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+const ALGO='Adaptive Synchronous Traffic Signal Control';
 const DEMO={dImp:null,tImp:null,aog:null,aogFix:null,thrAd:null,thrFx:null,thrE:null,thrG:null,mape:null,mapeH:null,dA:null,dN:null,latA:null,latM:null,scal:[]};
 const LBL={dImp:'Delay improvement vs fixed-time (%)',tImp:'Travel-time improvement (%)',aog:'Arrival-on-green, adaptive (%)',
 aogFix:'Arrival-on-green, fixed-time (%)',thrAd:'Served flow, adaptive plan (veh/h)',thrFx:'Served flow, fixed-time plan (veh/h)',thrE:'Throughput, probe-based estimate (veh/h)',thrG:'Throughput, ground truth (veh/h)',mape:'Travel-time prediction MAPE (%)',
@@ -155,12 +156,12 @@ function score(){const hid=hidden(),L=[];
   cmp('Travel-time reduction',S.tImp,[['Fixed-time',0],['Max-Pressure',22.0],['MFAPC',24.3],['MPC-Road',19.0],['MPC-CasADi',30.0]],1);
   cmp('Arrival on green',S.aog,[['Fixed-time',S.aogFix]],1);
   cmp('Update time (lower is better)',S.latA,[['MFAPC',972],['MPC-CasADi',4137],['MPC-Road',4389]],0);
-  $('#score').innerHTML=(L.length?'<ul>'+L.join('')+'</ul>':'<p class="muted">Upload a dataset or result file to see the scoreboard.</p>')+'<p class="note">Graphs 4 to 6 compare your algorithm with ground truth or with a variant of itself, and graph 8 has published points only for 6 intersections; no published values were found for these algorithms on those parameters. This list is computed from the numbers above, not adjusted.</p>';
+  $('#score').innerHTML=(L.length?'<ul>'+L.join('')+'</ul>':'<p class="muted">Upload a dataset or result file to see the scoreboard.</p>')+'<p class="note">Graphs 4 to 6 compare the '+ALGO+' algorithm with ground truth or with a variant of itself, and graph 8 has published points only for 6 intersections; no published values were found for these algorithms on those parameters. This list is computed from the numbers above, not adjusted.</p>';
 }
 function draw(){
   const cs=getComputedStyle(document.documentElement);
   Chart.defaults.color=cs.getPropertyValue('--fg').trim();Chart.defaults.borderColor=cs.getPropertyValue('--line').trim();
-  const Y='Your algorithm';
+  const Y=ALGO;
   bar('c1',[[Y,S.dImp,'me'],['Fixed-time',0,'fix'],['Max-Pressure',35.4,'mp'],['MFAPC',42.1,'mfapc'],['MPC-Road',28.4,'road'],['MPC-CasADi',53.6,'cas']],'Delay reduction vs fixed-time (%)');
   bar('c2',[[Y,S.tImp,'me'],['Fixed-time',0,'fix'],['Max-Pressure',22.0,'mp'],['MFAPC',24.3,'mfapc'],['MPC-Road',19.0,'road'],['MPC-CasADi',30.0,'cas']],'Travel-time reduction vs fixed-time (%)');
   bar('c3',[[Y+' (adaptive offsets)',S.aog,'me'],['Fixed-time (offsets 0)',S.aogFix,'fix']],'Arrival on green (%)');
@@ -286,7 +287,7 @@ $('#run').onclick=async()=>{const st=$('#rstat'),f=$('#raw').files[0];if(!f){st.
   st.textContent=' Running…';await new Promise(r=>setTimeout(r,40));
   try{const R=simulate(await f.text(),cfgFrom($('#cfg').value),$('#gtf').files[0]?await $('#gtf').files[0].text():null),col=k=>R.rows.map(r=>isFinite(r[k])?r[k]:null),A=k=>avg(col(k)),imp=(a,b)=>A(b)?100*(A(b)-A(a))/A(b):null,pc=k=>A(k)==null?null:100*A(k);
     Object.assign(S,{dImp:imp('est_delay_adaptive_s','est_delay_fixed_s'),tImp:imp('est_tt_adaptive_s','est_tt_fixed_s'),aog:pc('aog_adaptive'),aogFix:pc('aog_fixed'),latA:A('latency_ms'),latM:Math.max(...col('latency_ms').filter(v=>v!=null)),mape:R.mape,mapeH:R.mapeH,dA:R.dA,dN:R.dN,thrAd:A('served_adaptive_vph'),thrFx:A('served_fixed_vph'),thrE:R.thrE,thrG:R.thrG,scal:R.scal});
-    FILES=[{name:'Your algorithm (browser run)',rows:R.rows}];buildFields();draw();drawT();
+    FILES=[{name:ALGO+' (browser run)',rows:R.rows}];buildFields();draw();drawT();
     st.textContent=` Done: ${R.n} rows, ${R.M} signal(s), ${R.rows.length} windows. Scroll down for the graphs.`}
   catch(e){st.textContent=' Error: '+e.message}};
 const esc=x=>x.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
